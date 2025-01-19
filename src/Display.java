@@ -170,7 +170,7 @@ public class Display {
     }
 
 
-    public void showTestGroupSelection(List<String> testGroupNames) {
+    public boolean[] showTestGroupSelection(List<String> testGroupNames) {
         // Root component
         JFrame frame = new JFrame();
         frame.setLayout(new GridBagLayout());
@@ -187,14 +187,19 @@ public class Display {
             JCheckBox checkBox = new JCheckBox(name, true);
             groupList.add(checkBox);
         }
+        
+        boolean[] selections = new boolean[testGroupNames.size()];
 
         // Confirm button
         JButton button = new JButton("Start Tests");
         button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                // TODO
+            	for (int i = 0; i < groupList.getComponentCount(); i++) {
+            		selections[i] = ((JCheckBox) groupList.getComponent(i)).isSelected();
+                }
                 frame.dispose();
+                notify();
             }
         });
         
@@ -216,6 +221,14 @@ public class Display {
         frame.pack();
 
         frame.setVisible(true);
+        
+        try {
+			wait();
+		} catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
+        
+        return selections;
     }
 
 }
