@@ -29,51 +29,27 @@ public class RobotConnection implements AutoCloseable {
 	private Socket server;
 	private Logger log;
 
-	public RobotConnection(Logger log, Display display, String host, int port) {
+	public RobotConnection(Logger log, Display display) {
 		this.log = log;
 		this.display = display;
-		try {
-			this.server = new Socket(host, port);
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
 	}
 	
-	public void start() {
+	public void start(String host, int port) throws IOException {
+		this.server = new Socket(host, port);
+		log.log(Level.FINEST, "Socket connected.");
+		
 		final PrintWriter writer;
 		final BufferedReader reader;
-	    try {
-	        writer = new PrintWriter(server.getOutputStream(), true);
-	    } catch (IOException e) {
-	        throw new IllegalStateException("Server disconnected");
-	    }
+	    writer = new PrintWriter(server.getOutputStream(), true);
 	    log.log(Level.FINEST, "Writer initialized.");
-	    try {
-	        reader = new BufferedReader(new InputStreamReader(server.getInputStream()));
-	    } catch (IOException e) {
-	        throw new IllegalStateException("Server disconnected");
-	    }
+	    reader = new BufferedReader(new InputStreamReader(server.getInputStream()));
 	    log.log(Level.FINEST, "Reader initialized.");
 	    
-	    // Enter main loop
-	    log.log(Level.FINE, "Beginning connection loop.");
-	    while (true) {
-	    	try {
-	    		log.log(Level.INFO, "Begin holding.");
-				holding(writer, reader);
-				log.log(Level.INFO, "Begin running.");
-				running(writer, reader);
-			} catch (IOException e) {
-				log.log(Level.WARNING, e.toString());
-				try {
-					log.log(Level.FINE, LocalDateTime.now().toString());
-					Thread.sleep(1000);
-				} catch (InterruptedException e1) {
-					e1.printStackTrace();
-				}
-			}
-	    }
-	    
+	    log.log(Level.FINE, "Beginning connection logic.");
+	    log.log(Level.INFO, "Begin holding.");
+		holding(writer, reader);
+		log.log(Level.INFO, "Begin running.");
+		running(writer, reader);
 	}
 	
 	private void holding(PrintWriter writer, BufferedReader reader) throws IOException {
