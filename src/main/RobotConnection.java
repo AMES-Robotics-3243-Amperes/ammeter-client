@@ -1,12 +1,17 @@
 package main;
+import java.awt.LinearGradientPaint;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import main.Display.TestResults;
 import main.Display.TestSuccess;
@@ -24,8 +29,10 @@ public class RobotConnection implements AutoCloseable {
 	
 	private Display display;
 	private Socket server;
+	private Logger log;
 
-	public RobotConnection(Display display, String host, int port) {
+	public RobotConnection(Logger log, Display display, String host, int port) {
+		this.log = log;
 		this.display = display;
 		try {
 			this.server = new Socket(host, port);
@@ -42,36 +49,54 @@ public class RobotConnection implements AutoCloseable {
 	    } catch (IOException e) {
 	        throw new IllegalStateException("Server disconnected");
 	    }
+	    log.log(Level.FINEST, "Writer initialized.");
 	    try {
 	        reader = new BufferedReader(new InputStreamReader(server.getInputStream()));
 	    } catch (IOException e) {
 	        throw new IllegalStateException("Server disconnected");
 	    }
+	    log.log(Level.FINEST, "Reader initialized.");
 	    
 	    // Enter main loop
+	    log.log(Level.FINE, "Beginning connection loop.");
 	    while (true) {
 	    	try {
+	    		log.log(Level.INFO, "Begin holding.");
 				holding(writer, reader);
+				log.log(Level.INFO, "Begin running.");
 				running(writer, reader);
 			} catch (IOException e) {
-				e.printStackTrace();
+				log.log(Level.WARNING, e.toString());
+				try {
+					log.log(Level.FINE, LocalDateTime.now().toString());
+					Thread.sleep(1000);
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
+				}
 			}
 	    }
 	    
 	}
 	
 	private void holding(PrintWriter writer, BufferedReader reader) throws IOException {
+		
 		ArrayList<String> testGroups = new ArrayList<String>();
 		while (true) {
 			String message = reader.readLine();
-			if (message == GROUP_SELECTION_TERMINATOR) {
+			log.log(Level.FINEST, "Test group message recived: " + message);
+			if (message.equals(GROUP_SELECTION_TERMINATOR)) {
+				log.log(Level.FINER, "Test group selection termination recieved.");
 				break;
 			} else {
 				testGroups.add(message);
 			}
 		}
 		
+		log.log(Level.FINE, "Test groups recieved.");
+		
 		boolean[] selections = display.showTestGroupSelection(testGroups);
+		
+		log.log(Level.FINE, "Test group selections selected.");
 		
 		StringBuilder toReply = new StringBuilder();
 		for (boolean b : selections) {
@@ -81,13 +106,16 @@ public class RobotConnection implements AutoCloseable {
 				toReply.append("F");
 			}
 		}
+		
+		writer.println(toReply);
+		log.log(Level.FINEST, "Sent: " + toReply);
 	}
 	
 	private void running(PrintWriter writer, BufferedReader reader) throws IOException {
 		String firstResultsMessage;
 		while (true) {
 			String message = reader.readLine();
-			if (message == QUESTION_HEADER) {
+			if (message.equals(QUESTION_HEADER)) {
 				// Ignore header and process rest of question.
 				processQuestion(writer, reader);
 			} else {
@@ -125,12 +153,14 @@ public class RobotConnection implements AutoCloseable {
 		String currentTestGroupName = null;
 
 		// Handle special case with first line
-		if (firstLine == RESULTS_TERMINATOR) {
+		if (firstLine.equals(RESULTS_TERMINATOR)) {
 			done = true;
+			log.finer("First line was termination.");
 		} else {
-			if (firstLine.substring(0,2) != "G:") {
+			if (firstLine.length() < 2 || !(firstLine.substring(0,2).equals("G:"))) {
 				throw new RuntimeException("First line was neither the terminator, nor a test group header.");
 			}
+			log.finer("First line was: " + firstLine);
 			currentTestGroup = new HashMap<String, TestResults>();
 			currentTestGroupName = firstLine.substring(2);
 		}
@@ -138,48 +168,59 @@ public class RobotConnection implements AutoCloseable {
 		// Iterate through the rest.
 		while (!done) {
 			String line = reader.readLine();
-			if (line == RESULTS_TERMINATOR) {
+			log.finer("Results line (" + line + ") read.");
+			if (line.equals(RESULTS_TERMINATOR)) {
+				log.finest("Line detected as termination! Setting done to true.");
 				done = true;
 			} else {
-				switch (line.substring(0,2)) {
+				if (line.length() > 1) {
+					String tag = line.substring(0,2);
+				
 				    // Test group header
-				    case "G:" -> {
+				    if (tag.equals("G:")) {
+				    	log.finest("Line detected as group header");
 				    	out.put(currentTestGroupName, currentTestGroup);
 				    	currentTestGroup = new HashMap<String, TestResults>();
 				    	currentTestGroupName = line.substring(2);
-				    	break;
 				    }
 				    // Tests
 				    //   Success
-                    case "S:" -> {
+				    else if (tag.equals("S:")) {
+				    	log.finest("Line detected as test success");
                     	String testMessage = reader.readLine();
+                    	log.finest("Test message was: " + testMessage);
                     	currentTestGroup.put(line.substring(2), new TestResults(TestSuccess.SUCCESS, testMessage));
-				    	break;
 				    }
                     //   Failure
-                    case "F:" -> {
+				    else if (tag.equals("F:")) {
+				    	log.finest("Line detected as test failure");
                     	String testMessage = reader.readLine();
+                    	log.finest("Test message was: " + testMessage);
                     	currentTestGroup.put(line.substring(2), new TestResults(TestSuccess.FAIL, testMessage));
-				    	break;
 				    }
                     //   Not run
-                    case "N:" -> {
+				    else if (tag.equals("N:")) {
+				    	log.finest("Line detected as test notrun");
                     	String testMessage = reader.readLine();
+                    	log.finest("Test message was: " + testMessage);
                     	currentTestGroup.put(line.substring(2), new TestResults(TestSuccess.NOTRUN, testMessage));
-				    	break;
 				    }
                     // Something else. Note that test messages are immediately captured after the header is received.
-				    default -> {
+				    else {
 					    throw new RuntimeException("Invalid item in results stream.");
 				    }
-				}
+				} else {
+				    throw new RuntimeException("Invalid item in results stream.");
+			    }
 			}
 		}
 		
 		if (currentTestGroupName != null) {
+			log.finer("Adding last group (" + currentTestGroupName + ")");
 			out.put(currentTestGroupName, currentTestGroup);
 		}
 		
+		log.info("Done determining results.");
 		return out;
 	}
 

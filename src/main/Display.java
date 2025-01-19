@@ -9,6 +9,9 @@ import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -21,8 +24,9 @@ import javax.swing.text.html.HTMLDocument;
 
 public class Display {
 
-	public Display() {
-		// TODO Auto-generated constructor stub
+	private Logger log;
+	public Display(Logger log) {
+		this.log = log;
 	}
 	
 	public static enum TestSuccess {
@@ -192,15 +196,17 @@ public class Display {
 		boolean[] selections = new boolean[testGroupNames.size()];
 
 		// Confirm button
+		CompletableFuture<Boolean> isDone = new CompletableFuture<>();
 		JButton button = new JButton("Start Tests");
 		button.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
+				log.log(Level.FINEST, "User test group selection button clicked.");
 				for (int i = 0; i < groupList.getComponentCount(); i++) {
 					selections[i] = ((JCheckBox) groupList.getComponent(i)).isSelected();
 				}
 				frame.dispose();
-				notify();
+				isDone.complete(true);
 			}
 		});
 		
@@ -223,11 +229,11 @@ public class Display {
 
 		frame.setVisible(true);
 		
-		try {
-			wait();
-		} catch (InterruptedException e) {
-			throw new RuntimeException(e);
-		}
+		log.log(Level.FINEST, "User test group selection displayed.");
+		
+		isDone.join();
+		
+		log.log(Level.FINEST, "User test group selection returned.");
 		
 		return selections;
 	}
