@@ -14,10 +14,16 @@ public class Main {
         Handler handler = new ConsoleHandler();
         handler.setLevel(Level.INFO);
 		log.addHandler(handler);
-		log.setLevel(Level.INFO);
 		
 		Display display = new Display(log);
 		log.log(Level.INFO, "Display initialzed");
+		
+		Handler mainWindowHandler = display.displayMainWindow();
+		mainWindowHandler.setLevel(Level.INFO);
+		log.addHandler(mainWindowHandler);
+		
+		log.setLevel(Level.INFO);
+		
 		try (RobotConnection robotConnection = new RobotConnection(log, display)) {
 			while (true) {
 				try {

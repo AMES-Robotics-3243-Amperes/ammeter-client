@@ -1,8 +1,11 @@
 package main;
+import java.awt.Color;
 import java.awt.Container;
+import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
 import java.awt.ScrollPane;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -10,22 +13,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Handler;
 import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
+import javax.swing.BoxLayout;
+import javax.swing.GroupLayout;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.JTextPane;
+import javax.swing.JToggleButton;
+import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.DimensionUIResource;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyleContext;
 import javax.swing.text.html.HTMLDocument;
 
 public class Display {
 
 	private Logger log;
+    private final String imgUrl = "/img";
+    private ImageIcon[] flowcharts;
 	public Display(Logger log) {
+		flowcharts = new ImageIcon[6];
+		for (int i = 0; i < flowcharts.length; i++) {
+			flowcharts[i] = new StretchIcon(getClass().getResource(imgUrl + "/AmmeterClientFlowchart" + i + ".jpg"));
+		}
 		this.log = log;
 	}
 	
@@ -63,6 +86,171 @@ public class Display {
 		public TestResults(TestSuccess successResult) {
 			this(successResult, "");
 		}
+	}
+	
+	private class TextPaneConsole extends Handler {
+		
+		private JTextPane textPane;
+		
+		public TextPaneConsole(JTextPane textPane) {
+			this.textPane = textPane;
+		}
+
+		@Override
+		public void publish(LogRecord record) {
+		    appendToPane(
+		    	textPane, 
+		    	record.getLevel().getLocalizedName(), 
+		    	colorFromLevel(record.getLevel())
+		    );
+		    String fullMillisTime = Long.toString(record.getMillis());
+		    appendToPane(
+			    textPane, 
+			    "\t:" + fullMillisTime.substring(fullMillisTime.length() - 6) + ":\t", 
+			    new Color(0, 0, 0)
+			);
+		    appendToPane(
+				textPane, 
+				record.getMessage() + "\n", 
+				new Color(50, 50, 50)
+			);
+		}
+
+		@Override
+		public void flush() {}
+
+		@Override
+		public void close() throws SecurityException {}
+	}
+	
+	public Handler displayMainWindow() {
+		// Initialize elements
+		JFrame frame = new JFrame();
+		
+		GridBagConstraints constraints = new GridBagConstraints();
+		
+		frame.setLayout(new GridLayout(1, 2));
+		
+		Container leftPane = new Container();
+		leftPane.setLayout(new GridBagLayout());
+		
+		Container leftUpperPane = new Container();
+		GroupLayout leftUpperLayout = new GroupLayout(leftUpperPane);
+		leftUpperPane.setLayout(leftUpperLayout);
+		
+		JLabel targetLabel = new JLabel("Target:");
+		JLabel targetNotes = new JLabel("<html>Target describes the host that will be connected to. For simulation, this is 'localhost'. For regular control, this is either 10.##.##.2 or 'roboRIO-####-FRC.local', where #### is your team number.</html>");
+		JLabel portLabel = new JLabel("Port:");
+		JLabel portNotes = new JLabel("The port is normally 6001.");
+		
+		JTextField targetField = new JTextField("localhost");
+		JTextField portField = new JTextField("6001");
+		
+		Container leftLowerPane = new Container();
+		leftLowerPane.setLayout(new GridLayout(1, 2));
+		JButton connectButton = new JButton("Connect");
+		JToggleButton autoToggleButton = new JToggleButton("Auto connect");
+		
+		Container rightPane = new Container();
+		rightPane.setLayout(new GridBagLayout());
+		
+		Container rightUpperPane = new Container();
+		rightUpperPane.setLayout(new BoxLayout(rightUpperPane, BoxLayout.Y_AXIS));
+		
+		JLabel connectionDisplay = new JLabel("Disconnected", JLabel.CENTER);
+		JLabel statusImage = new JLabel(flowcharts[0], JLabel.CENTER);
+		
+		ScrollPane rightLowerPane = new ScrollPane();
+		
+		JTextPane console = new JTextPane();
+		
+		// Configure elements
+		targetField.setPreferredSize(new Dimension(100, 10));
+		portField.setPreferredSize(new Dimension(100, 10));
+		targetField.setMaximumSize(new Dimension(99999, 10));
+		portField.setMaximumSize(new Dimension(99999, 10));
+		
+		console.setBorder(new EmptyBorder(new Insets(5, 5, 5, 5)));
+		
+		rightLowerPane.setPreferredSize(new Dimension(400, 400));
+		
+		statusImage.setMinimumSize(new Dimension(1896 / 4, 481 / 4));
+		statusImage.setPreferredSize(new Dimension(1896 / 4, 481 / 4));
+		statusImage.setMaximumSize(new Dimension(18960, 4810));
+		
+		
+		
+		// Glue elements
+		// TODO
+		leftUpperLayout.setVerticalGroup(
+			leftUpperLayout.createSequentialGroup()
+			    .addGroup(leftUpperLayout.createParallelGroup()
+			    	.addComponent(targetLabel)
+			    	.addComponent(targetField))
+			    .addComponent(targetNotes)
+			    .addGroup(leftUpperLayout.createParallelGroup()
+				    .addComponent(portLabel)
+				    .addComponent(portField))
+			    .addComponent(portNotes)
+		);
+		leftUpperLayout.setHorizontalGroup(
+			leftUpperLayout.createSequentialGroup()
+			    .addGroup(leftUpperLayout.createParallelGroup()
+			    	.addComponent(targetLabel)
+			    	.addComponent(targetNotes)
+			    	.addComponent(portLabel)
+			    	.addComponent(portNotes))
+			    .addGroup(leftUpperLayout.createParallelGroup(GroupLayout.Alignment.TRAILING)
+				    .addComponent(targetField)
+				    .addComponent(portField))
+		);
+		
+		leftLowerPane.add(connectButton);
+		
+		leftLowerPane.add(autoToggleButton);
+		
+		constraints.fill = GridBagConstraints.BOTH;
+		constraints.gridx = 0;
+		constraints.gridy = 0;
+		constraints.weightx = 1;
+		constraints.weighty = 9;
+		leftPane.add(leftUpperPane, constraints);
+		
+		constraints.fill = GridBagConstraints.BOTH;
+		constraints.gridx = 0;
+		constraints.gridy = 1;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		leftPane.add(leftLowerPane, constraints);
+		
+		rightUpperPane.add(connectionDisplay);
+		rightUpperPane.add(statusImage);
+		
+		rightLowerPane.add(console);
+		
+		constraints.fill = GridBagConstraints.BOTH;
+		constraints.gridx = 0;
+		constraints.gridy = 0;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		rightPane.add(rightUpperPane, constraints);
+		
+		constraints.fill = GridBagConstraints.BOTH;
+		constraints.gridx = 0;
+		constraints.gridy = 1;
+		constraints.weightx = 1;
+		constraints.weighty = 4;
+		rightPane.add(rightLowerPane, constraints);
+		
+		frame.add(leftPane, constraints);
+		
+		frame.add(rightPane, constraints);
+		
+		frame.pack();
+		
+		frame.setVisible(true);
+		
+		return new TextPaneConsole(console);
 	}
 	
 	/** The format used to generate the HTML group headers in the test results @author H! */
@@ -257,6 +445,35 @@ public class Display {
 			default:
 				return null;
 		}
+	}
+	
+	
+	// Thank you to nIcE cOw (https://stackoverflow.com/questions/9650992/how-to-change-text-color-in-the-jtextarea)
+	private static void appendToPane(JTextPane tp, String msg, Color c)
+    {
+        StyleContext sc = StyleContext.getDefaultStyleContext();
+        AttributeSet aset = sc.addAttribute(SimpleAttributeSet.EMPTY, StyleConstants.Foreground, c);
+
+        aset = sc.addAttribute(aset, StyleConstants.FontFamily, "Lucida Console");
+        aset = sc.addAttribute(aset, StyleConstants.Alignment, StyleConstants.ALIGN_LEFT);
+
+        int len = tp.getDocument().getLength();
+        tp.setCaretPosition(len);
+        tp.setCharacterAttributes(aset, false);
+        tp.replaceSelection(msg);
+    }
+	
+	private static Color colorFromLevel(Level level) {
+		if (level.intValue() >= Level.SEVERE.intValue()) {
+			return new Color(128, 10, 10);
+		}
+		if (level.intValue() >= Level.WARNING.intValue()) {
+			return new Color(200, 130, 10);
+		}
+		if (level.intValue() >= Level.INFO.intValue()) {
+			return new Color(130, 180, 130);
+		}
+		return new Color(65, 65, 65);
 	}
 
 }
