@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import main.Display.ProgramState;
 import main.Display.TestResults;
 import main.Display.TestSuccess;
 
@@ -35,6 +36,8 @@ public class RobotConnection implements AutoCloseable {
 	}
 	
 	public void start(String host, int port) throws IOException {
+		display.setCurrentState(ProgramState.DISCONNECTED);
+		
 		this.server = new Socket(host, port);
 		log.log(Level.FINEST, "Socket connected.");
 		
@@ -45,15 +48,17 @@ public class RobotConnection implements AutoCloseable {
 	    reader = new BufferedReader(new InputStreamReader(server.getInputStream()));
 	    log.log(Level.FINEST, "Reader initialized.");
 	    
-	    log.log(Level.FINE, "Beginning connection logic.");
-	    log.log(Level.INFO, "Begin holding.");
-		holding(writer, reader);
-		log.log(Level.INFO, "Begin running.");
-		running(writer, reader);
+	    log.log(Level.FINE, "Beginning connection loop.");
+	    while (true) {
+	    	log.log(Level.INFO, "Begin holding.");
+			holding(writer, reader);
+			log.log(Level.INFO, "Begin running.");
+			running(writer, reader);
+	    }
 	}
 	
 	private void holding(PrintWriter writer, BufferedReader reader) throws IOException {
-		
+		display.setCurrentState(ProgramState.TEST_GROUP_RECIEVING);
 		ArrayList<String> testGroups = new ArrayList<String>();
 		while (true) {
 			String message = reader.readLine();
@@ -68,6 +73,7 @@ public class RobotConnection implements AutoCloseable {
 		
 		log.log(Level.FINE, "Test groups recieved.");
 		
+		display.setCurrentState(ProgramState.TEST_GROUP_USER_SELECTION);
 		boolean[] selections = display.showTestGroupSelection(testGroups);
 		
 		log.log(Level.FINE, "Test group selections selected.");
@@ -88,9 +94,11 @@ public class RobotConnection implements AutoCloseable {
 	private void running(PrintWriter writer, BufferedReader reader) throws IOException {
 		String firstResultsMessage;
 		while (true) {
+			display.setCurrentState(ProgramState.RUNNING_IDLE);
 			String message = reader.readLine();
 			if (message.equals(QUESTION_HEADER)) {
 				// Ignore header and process rest of question.
+				display.setCurrentState(ProgramState.QUESTION_RECIEVING);
 				processQuestion(writer, reader);
 			} else {
 				// Store first message and move to results phase.
@@ -99,6 +107,7 @@ public class RobotConnection implements AutoCloseable {
 			}
 		}
 		
+		display.setCurrentState(ProgramState.RESULTS_RECIEVING);
 		var results = processResultsSection(writer, reader, firstResultsMessage);
 		display.displayTestResults(results);
 	}
@@ -108,6 +117,7 @@ public class RobotConnection implements AutoCloseable {
 		String yesOption = reader.readLine();
 		String noOptions = reader.readLine();
 		
+		display.setCurrentState(ProgramState.QUESTION_USER_SELECTION);
 		boolean result = display.askUserQuestion(question, yesOption, noOptions);
 		
 		if (result) {

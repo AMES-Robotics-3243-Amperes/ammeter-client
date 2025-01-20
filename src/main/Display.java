@@ -1,7 +1,9 @@
 package main;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -9,6 +11,7 @@ import java.awt.Insets;
 import java.awt.ScrollPane;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -18,9 +21,8 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
+import javax.management.loading.PrivateClassLoader;
 import javax.swing.BoxLayout;
-import javax.swing.GroupLayout;
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -45,7 +47,7 @@ public class Display {
     private final String imgUrl = "/img";
     private ImageIcon[] flowcharts;
 	public Display(Logger log) {
-		flowcharts = new ImageIcon[6];
+		flowcharts = new ImageIcon[7];
 		for (int i = 0; i < flowcharts.length; i++) {
 			flowcharts[i] = new StretchIcon(getClass().getResource(imgUrl + "/AmmeterClientFlowchart" + i + ".jpg"));
 		}
@@ -85,6 +87,34 @@ public class Display {
 
 		public TestResults(TestSuccess successResult) {
 			this(successResult, "");
+		}
+	}
+	
+	public static enum ProgramState {
+		DISCONNECTED,
+		TEST_GROUP_RECIEVING,
+		TEST_GROUP_USER_SELECTION,
+		RUNNING_IDLE,
+		QUESTION_RECIEVING,
+		QUESTION_USER_SELECTION,
+		RESULTS_RECIEVING
+	}
+	
+	private ProgramState currentState = ProgramState.DISCONNECTED;
+	
+	public synchronized void setCurrentState(ProgramState state) {
+		currentState = state;
+		onStateChange();
+	}
+	
+	public synchronized ProgramState getCurrentState() {
+		return currentState;
+	}
+	
+	private List<Runnable> whenStateChanges = new ArrayList<>();
+	private void onStateChange() {
+		for (var onChange : whenStateChanges) {
+			onChange.run();
 		}
 	}
 	
@@ -135,8 +165,7 @@ public class Display {
 		leftPane.setLayout(new GridBagLayout());
 		
 		Container leftUpperPane = new Container();
-		GroupLayout leftUpperLayout = new GroupLayout(leftUpperPane);
-		leftUpperPane.setLayout(leftUpperLayout);
+		leftUpperPane.setLayout(new GridBagLayout());
 		
 		JLabel targetLabel = new JLabel("Target:");
 		JLabel targetNotes = new JLabel("<html>Target describes the host that will be connected to. For simulation, this is 'localhost'. For regular control, this is either 10.##.##.2 or 'roboRIO-####-FRC.local', where #### is your team number.</html>");
@@ -165,10 +194,45 @@ public class Display {
 		JTextPane console = new JTextPane();
 		
 		// Configure elements
-		targetField.setPreferredSize(new Dimension(100, 10));
-		portField.setPreferredSize(new Dimension(100, 10));
-		targetField.setMaximumSize(new Dimension(99999, 10));
-		portField.setMaximumSize(new Dimension(99999, 10));
+		final String fontFamily = "Arial";
+		Font labelFont = new Font(fontFamily, Font.BOLD, 22);
+		Font fieldFont = new Font(fontFamily, Font.PLAIN, 22);
+		Font notesFont = new Font(fontFamily, Font.ITALIC, 16);
+		targetLabel.setFont(labelFont);
+		targetField.setFont(fieldFont);
+		targetNotes.setFont(notesFont);
+		portLabel.setFont(labelFont);
+		portField.setFont(fieldFont);
+		portNotes.setFont(notesFont);
+		
+		Font buttonFont = new Font(fontFamily, Font.BOLD, 24);
+		connectButton.setFont(buttonFont);
+		autoToggleButton.setFont(buttonFont);
+		
+		Font signalFont = new Font(fontFamily, Font.BOLD, 28);
+		connectionDisplay.setFont(signalFont);
+		connectionDisplay.setBorder(new EmptyBorder(10, 25, 10, 25));
+		connectionDisplay.setBackground(new Color(50, 30, 30));
+		connectionDisplay.setForeground(new Color(255, 20, 20));
+		connectionDisplay.setAlignmentX(Component.CENTER_ALIGNMENT);
+		connectionDisplay.setOpaque(true);
+		
+		whenStateChanges.add(() -> {
+			if (getCurrentState() == ProgramState.DISCONNECTED) {
+				connectionDisplay.setBackground(new Color(50, 30, 30));
+				connectionDisplay.setForeground(new Color(255, 20, 20));
+				connectionDisplay.setText("Disconnected");
+			} else {
+				connectionDisplay.setBackground(new Color(30, 50, 30));
+				connectionDisplay.setForeground(new Color(20, 255, 20));
+				connectionDisplay.setText("Connected");
+			}
+		});
+		
+		statusImage.setAlignmentX(Component.CENTER_ALIGNMENT);
+		whenStateChanges.add(() -> {
+			statusImage.setIcon(flowcharts[getCurrentState().ordinal()]);
+		});
 		
 		console.setBorder(new EmptyBorder(new Insets(5, 5, 5, 5)));
 		
@@ -178,38 +242,81 @@ public class Display {
 		statusImage.setPreferredSize(new Dimension(1896 / 4, 481 / 4));
 		statusImage.setMaximumSize(new Dimension(18960, 4810));
 		
-		
-		
 		// Glue elements
-		// TODO
-		leftUpperLayout.setVerticalGroup(
-			leftUpperLayout.createSequentialGroup()
-			    .addGroup(leftUpperLayout.createParallelGroup()
-			    	.addComponent(targetLabel)
-			    	.addComponent(targetField))
-			    .addComponent(targetNotes)
-			    .addGroup(leftUpperLayout.createParallelGroup()
-				    .addComponent(portLabel)
-				    .addComponent(portField))
-			    .addComponent(portNotes)
-		);
-		leftUpperLayout.setHorizontalGroup(
-			leftUpperLayout.createSequentialGroup()
-			    .addGroup(leftUpperLayout.createParallelGroup()
-			    	.addComponent(targetLabel)
-			    	.addComponent(targetNotes)
-			    	.addComponent(portLabel)
-			    	.addComponent(portNotes))
-			    .addGroup(leftUpperLayout.createParallelGroup(GroupLayout.Alignment.TRAILING)
-				    .addComponent(targetField)
-				    .addComponent(portField))
-		);
+		constraints.insets = new Insets(2, 2, 2, 2);
 		
+		constraints.fill = GridBagConstraints.NONE;
+		constraints.anchor = GridBagConstraints.LINE_START;
+		constraints.gridheight = 1;
+		constraints.gridwidth = 1;
+		constraints.gridx = 0;
+		constraints.gridy = 0;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		leftUpperPane.add(targetLabel, constraints);
+		
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.anchor = GridBagConstraints.LINE_END;
+		constraints.gridheight = 1;
+		constraints.gridwidth = 1;
+		constraints.gridx = 1;
+		constraints.gridy = 0;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		leftUpperPane.add(targetField, constraints);
+		
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.anchor = GridBagConstraints.LINE_START;
+		constraints.gridheight = 1;
+		constraints.gridwidth = 2;
+		constraints.gridx = 0;
+		constraints.gridy = 1;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		leftUpperPane.add(targetNotes, constraints);
+		
+		constraints.fill = GridBagConstraints.NONE;
+		constraints.anchor = GridBagConstraints.LINE_START;
+		constraints.gridheight = 1;
+		constraints.gridwidth = 1;
+		constraints.gridx = 0;
+		constraints.gridy = 2;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		leftUpperPane.add(portLabel, constraints);
+		
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.anchor = GridBagConstraints.LINE_END;
+		constraints.gridheight = 1;
+		constraints.gridwidth = 1;
+		constraints.gridx = 1;
+		constraints.gridy = 2;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		leftUpperPane.add(portField, constraints);
+		
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.anchor = GridBagConstraints.LINE_START;
+		constraints.gridheight = 1;
+		constraints.gridwidth = 2;
+		constraints.gridx = 0;
+		constraints.gridy = 3;
+		constraints.weightx = 1;
+		constraints.weighty = 1;
+		leftUpperPane.add(portNotes, constraints);
+		
+		constraints.anchor = GridBagConstraints.CENTER;
+		constraints.insets = new Insets(0, 0, 0, 0);
+		constraints.gridheight = 1;
+		constraints.gridwidth = 1;
+
 		leftLowerPane.add(connectButton);
 		
 		leftLowerPane.add(autoToggleButton);
 		
-		constraints.fill = GridBagConstraints.BOTH;
+		constraints.fill = GridBagConstraints.HORIZONTAL;
+		constraints.anchor = GridBagConstraints.PAGE_START;
+		constraints.insets = new Insets(10, 10, 0, 10);
 		constraints.gridx = 0;
 		constraints.gridy = 0;
 		constraints.weightx = 1;
@@ -217,6 +324,8 @@ public class Display {
 		leftPane.add(leftUpperPane, constraints);
 		
 		constraints.fill = GridBagConstraints.BOTH;
+		constraints.anchor = GridBagConstraints.CENTER;
+		constraints.insets = new Insets(0, 0, 0, 0);
 		constraints.gridx = 0;
 		constraints.gridy = 1;
 		constraints.weightx = 1;
