@@ -33,6 +33,16 @@ public class RobotConnection implements AutoCloseable {
 	public RobotConnection(Logger log, Display display) {
 		this.log = log;
 		this.display = display;
+		display.disconnector = this::disconnect;
+	}
+	
+	public void disconnect() {
+		try {
+			server.close();
+			log.info("User commanded disconnect.");
+		} catch (IOException exception) {
+			log.severe(exception.getStackTrace().toString());
+		}
 	}
 	
 	public void start(String host, int port) throws IOException {

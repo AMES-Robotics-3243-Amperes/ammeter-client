@@ -28,19 +28,26 @@ public class Main {
 		
 		try (RobotConnection robotConnection = new RobotConnection(log, display)) {
 			while (true) {
+				if (display.canConnect()) {
+					try {
+						String host = display.hostSupplier.get();
+						int port = display.portSupplier.get();
+				        log.log(Level.INFO, "Beginning client connection");
+				        robotConnection.start(host, port);
+			        } catch (Exception e) {
+			        	log.log(Level.WARNING, e.toString());
+			        	display.setCurrentState(ProgramState.DISCONNECTED);
+			        }
+				} else {
+					log.fine("Connection not authorized by user, retrying in 2 seconds.");
+				}
+				// Wait 2 seconds before next connection attempt
 				try {
-				    log.log(Level.INFO, "Beginning client connection");
-				    robotConnection.start("localhost", 6001);
-			    } catch (Exception e) {
-			    	log.log(Level.WARNING, e.toString());
-			    	display.setCurrentState(ProgramState.DISCONNECTED);
-			    	try {
-			    		log.log(Level.FINE, LocalDateTime.now().toString());
-			    		Thread.sleep(2000);
-			    	} catch (InterruptedException e1) {
-			    		e1.printStackTrace();
-			    	}
-			    }
+		    		log.log(Level.FINE, LocalDateTime.now().toString());
+		    		Thread.sleep(2000);
+		    	} catch (InterruptedException e1) {
+		    		e1.printStackTrace();
+		    	}
 			}
 		}
 	}

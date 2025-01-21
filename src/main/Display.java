@@ -11,19 +11,21 @@ import java.awt.Insets;
 import java.awt.ScrollPane;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
-import javax.management.loading.PrivateClassLoader;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
+import javax.swing.InputVerifier;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
@@ -111,12 +113,35 @@ public class Display {
 		return currentState;
 	}
 	
+	boolean autoConnect = false;
+	boolean connectionQueued = false;
+	
+	public synchronized boolean canConnect() {
+		if (autoConnect || connectionQueued) {
+			connectionQueued = false;
+			return true;
+		}
+		return false;
+	}
+	
+	private synchronized void setAutoConnect(boolean b) {
+		autoConnect = b;
+	}
+	
+	private synchronized void queueConnection() {
+		connectionQueued = true;
+	}
+	
 	private List<Runnable> whenStateChanges = new ArrayList<>();
 	private void onStateChange() {
 		for (var onChange : whenStateChanges) {
 			onChange.run();
 		}
 	}
+	
+	public Supplier<String> hostSupplier;
+	public Supplier<Integer> portSupplier;
+	public Runnable disconnector;
 	
 	private class TextPaneConsole extends Handler {
 		
@@ -205,9 +230,50 @@ public class Display {
 		portField.setFont(fieldFont);
 		portNotes.setFont(notesFont);
 		
+		hostSupplier = () -> {
+			synchronized (this) {return targetField.getText();}
+		};
+		
+		portSupplier = () -> {// TODO test this
+			synchronized (this) {return Integer.parseInt(portField.getText());}
+		};
+		
 		Font buttonFont = new Font(fontFamily, Font.BOLD, 24);
 		connectButton.setFont(buttonFont);
 		autoToggleButton.setFont(buttonFont);
+		
+		connectButton.addActionListener((a) -> {
+			if (getCurrentState() == ProgramState.DISCONNECTED) {
+				log.fine("Connect button pressed.");
+				queueConnection();
+			} else {
+				log.fine("Disconnect button pressed.");
+				setAutoConnect(false);
+				autoToggleButton.setSelected(false);
+				disconnector.run();
+			}
+		});
+		
+		whenStateChanges.add(() -> {
+			if (getCurrentState() == ProgramState.DISCONNECTED) { 
+				connectButton.setText("Connect");
+			} else {
+				connectButton.setText("Disconnect");
+				connectButton.setEnabled(true);
+			}
+		});
+		
+		autoToggleButton.addItemListener((i) -> {
+			if (i.getStateChange() == ItemEvent.SELECTED) {
+				if (getCurrentState() == ProgramState.DISCONNECTED) {
+					connectButton.setEnabled(false);	
+				}
+				setAutoConnect(true);
+			} else {
+				connectButton.setEnabled(true);
+				setAutoConnect(false);
+			}
+		});
 		
 		Font signalFont = new Font(fontFamily, Font.BOLD, 28);
 		connectionDisplay.setFont(signalFont);
@@ -356,6 +422,9 @@ public class Display {
 		frame.add(rightPane, constraints);
 		
 		frame.pack();
+		
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setSize(new Dimension(1896 / 2, 450));
 		
 		frame.setVisible(true);
 		
