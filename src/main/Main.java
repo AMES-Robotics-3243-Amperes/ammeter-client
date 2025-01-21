@@ -1,6 +1,5 @@
 package main;
 
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
