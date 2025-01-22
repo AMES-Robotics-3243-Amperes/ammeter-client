@@ -50,6 +50,7 @@ Communications are newline separated. Communication proceeds as follows:
 Contributions are very welcome! You can contribute by...
 * Solving issues or making improvements and submitting a pull request.
 * Adding issues for problems you encounter or features you would like.
+
 If you would like to know more about the project, or how you can contribute, contact
 hydrogenhone+ammeter@gmail.com or
 ames.amperes@gmail.com
