@@ -194,10 +194,10 @@ public class Display {
 		JLabel targetLabel = new JLabel("Target:");
 		JLabel targetNotes = new JLabel("<html>Target describes the host that will be connected to. For simulation, this is 'localhost'. For regular control, this is either 10.##.##.2 or 'roboRIO-####-FRC.local', where #### is your team number.</html>");
 		JLabel portLabel = new JLabel("Port:");
-		JLabel portNotes = new JLabel("The port is normally 6001.");
+		JLabel portNotes = new JLabel("The port is normally 5809.");
 		
 		JTextField targetField = new JTextField("localhost");
-		JTextField portField = new JTextField("6001");
+		JTextField portField = new JTextField("5809");
 		
 		Container leftLowerPane = new Container();
 		leftLowerPane.setLayout(new GridLayout(1, 2));
